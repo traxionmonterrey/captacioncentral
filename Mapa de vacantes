@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traxión | Mapa de Vacantes</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,Verdana,sans-serif;background:#f3f4f6;}
+.layout{display:flex;height:100vh;}
+.sidebar{width:320px;background:#1f2937;color:#fff;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:20px;}
+.sidebar h1{color:#D0DF00;font-size:22px;text-align:center;letter-spacing:1px;margin-bottom:4px;}
+.sidebar .subtitle{color:#9ca3af;font-size:12px;margin-bottom:10px;text-align:center;}
+
+.menu-group{margin-bottom:5px;}
+.menu-group-title{font-size:11px;color:#9ca3af;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;font-weight:700;}
+.menu-item{display:flex;align-items:center;gap:11px;padding:12px 15px;margin-bottom:8px;border-radius:8px;
+           color:#e5e7eb;text-decoration:none;font-weight:600;transition:all 0.3s;font-size:14px;}
+.menu-item svg{flex-shrink:0;width:18px;height:18px;fill:none;stroke:#9ca3af;stroke-width:1.7;
+               stroke-linecap:round;stroke-linejoin:round;transition:stroke 0.3s;}
+.menu-item:hover{background:#374151;transform:translateX(5px);}
+.menu-item:hover svg{stroke:#84cc16;}
+.menu-item.active{background:#D0DF00;color:#1f2937;}
+.menu-item.active svg{stroke:#1f2937;}
+
+.search-box{background:#111827;border-radius:10px;padding:16px;}
+.search-box label{font-size:12px;color:#9ca3af;font-weight:600;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;}
+.search-box input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#fff;font-size:13px;margin-bottom:10px;}
+.search-box input::placeholder{color:#6b7280;font-size:12px;}
+.search-box button{width:100%;padding:11px;border:none;border-radius:8px;background:#D0DF00;color:#1f2937;font-weight:700;font-size:14px;cursor:pointer;transition:.2s;}
+.search-box button:hover{background:#b9c700;}
+.search-box .hint{font-size:11px;color:#6b7280;margin-top:8px;line-height:1.4;}
+
+.result-panel{background:#111827;border-radius:10px;padding:16px;display:none;}
+.result-panel.show{display:block;}
+.result-panel h3{color:#FBAE40;font-size:13px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;}
+.result-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1f2937;font-size:13px;}
+.result-row:last-child{border-bottom:none;}
+.result-row .label{color:#9ca3af;}
+.result-row .value{color:#fff;font-weight:700;text-align:right;}
+.result-panel .ruta-name{color:#D0DF00;font-size:16px;font-weight:800;margin-bottom:10px;}
+
+.status{font-size:12px;color:#9ca3af;padding:8px 0;}
+.status.error{color:#f87171;}
+.status.loading{color:#FBAE40;}
+
+.legend{background:#111827;border-radius:10px;padding:14px;font-size:12px;color:#9ca3af;margin-top:auto;}
+.legend-item{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+
+.main{flex:1;position:relative;}
+#map{width:100%;height:100%;}
+
+.leaflet-popup-content{font-size:13px;}
+.leaflet-popup-content b{color:#1f2937;}
+
+@media(max-width:900px){
+  .layout{flex-direction:column}
+  .sidebar{width:100%;max-height:none;}
+  .main{height:60vh;}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div>
+      <h1>TRAXIÓN</h1>
+      <div class="subtitle">Mapa de rutas disponibles y asignación por domicilio</div>
+    </div>
+
+    <div class="menu-group">
+      <div class="menu-group-title">Logística</div>
+      <a href="index.html" class="menu-item">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>
+        </svg>
+        Inicio
+      </a>
+      <a href="Dashboard_ralenti.html" class="menu-item">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Captación Central
+      </a>
+      <a href="mapa_vacantes.html" class="menu-item active">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 21s-8-6.5-8-12a8 8 0 0 1 16 0c0 5.5-8 12-8 12z"/>
+          <circle cx="12" cy="9" r="3"/>
+        </svg>
+        Mapa de Vacantes
+      </a>
+    </div>
+
+    <div class="search-box">
+      <label>Coordenadas del domicilio (formato Google Maps)</label>
+      <input id="coordsInput" type="text" placeholder="25.85526522092479, -100.37910621509874">
+      <button id="btnBuscar">Buscar ruta más cercana</button>
+      <div class="hint">Pega tal cual las coordenadas que copias de Google Maps (lat, long separadas por coma).</div>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div id="resultPanel" class="result-panel">
+      <h3>Vacante más cercana</h3>
+      <div class="ruta-name" id="resRuta">—</div>
+      <div class="result-row"><span class="label">UDN</span><span class="value" id="resUdn">—</span></div>
+      <div class="result-row"><span class="label">Planta</span><span class="value" id="resPlanta">—</span></div>
+      <div class="result-row"><span class="label">Distancia en línea recta</span><span class="value" id="resHaversine">—</span></div>
+      <div class="result-row"><span class="label">Distancia real (carretera)</span><span class="value" id="resKm">—</span></div>
+      <div class="result-row"><span class="label">Tiempo estimado</span><span class="value" id="resTiempo">—</span></div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#D0DF00;"></div> Vacantes disponibles</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FBAE40;"></div> Domicilio del operador</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> Ruta calculada (OSRM)</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div id="map"></div>
+  </main>
+</div>
+
+<script>
+// ===================== CONFIG =====================
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRnsqLg92vrEQFiFqwna8ssgjUHxPSNfkgEdiyYf3s1XEHS7aY2td_9j7QC11z35uWoAP4rtsx3NFmr/pub?gid=0&single=true&output=csv";
+const OSRM_URL = "https://router.project-osrm.org/route/v1/driving/";
+
+// ===================== MAP INIT =====================
+const map = L.map('map').setView([25.6866, -100.3161], 10); // Monterrey aprox
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 19
+}).addTo(map);
+
+let vacantes = [];
+let vacanteMarkers = [];
+let homeMarker = null;
+let routeLine = null;
+
+const statusEl = document.getElementById('status');
+function setStatus(msg, type) {
+  statusEl.textContent = msg || '';
+  statusEl.className = 'status' + (type ? ' ' + type : '');
+}
+
+// ===================== HELPERS =====================
+// Normaliza encabezados: quita espacios, acentos y pasa a minúsculas
+function normalizeKey(k) {
+  return k.toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Busca el valor de una fila probando varios nombres posibles de columna
+function getField(row, candidates) {
+  const normalizedRow = {};
+  Object.keys(row).forEach(k => normalizedRow[normalizeKey(k)] = row[k]);
+  for (const c of candidates) {
+    const key = normalizeKey(c);
+    if (normalizedRow[key] !== undefined && normalizedRow[key] !== '') {
+      return normalizedRow[key];
+    }
+  }
+  return null;
+}
+
+// Convierte string de coordenada a número, tolerando comas decimales raras
+function toFloatCoord(val) {
+  if (val === null || val === undefined) return NaN;
+  const cleaned = val.toString().trim().replace(',', '.');
+  return parseFloat(cleaned);
+}
+
+// Fórmula Haversine — distancia en línea recta en km
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+            Math.sin(dLon/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Icono personalizado para vacantes y domicilio
+function coloredIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8]
+  });
+}
+
+// ===================== CARGA DE VACANTES =====================
+setStatus('Cargando vacantes...', 'loading');
+
+Papa.parse(CSV_URL, {
+  download: true,
+  header: true,
+  skipEmptyLines: true,
+  complete: function(results) {
+    vacantes = results.data.map(row => {
+      const udn = getField(row, ['UDN']);
+      const planta = getField(row, ['Planta']);
+      const ruta = getField(row, ['Ruta']);
+      const lat = toFloatCoord(getField(row, ['latitude', 'latitud']));
+      const lon = toFloatCoord(getField(row, ['longitude', 'longitud']));
+      return { udn, planta, ruta, lat, lon };
+    }).filter(v => !isNaN(v.lat) && !isNaN(v.lon));
+
+    if (vacantes.length === 0) {
+      setStatus('No se encontraron vacantes con coordenadas válidas. Revisa el CSV publicado.', 'error');
+      return;
+    }
+
+    vacantes.forEach(v => {
+      const marker = L.marker([v.lat, v.lon], { icon: coloredIcon('#D0DF00') })
+        .addTo(map)
+        .bindPopup(`<b>${v.ruta || 'Ruta s/n'}</b><br>UDN: ${v.udn || '—'}<br>Planta: ${v.planta || '—'}`);
+      vacanteMarkers.push(marker);
+    });
+
+    setStatus(`${vacantes.length} vacantes cargadas.`, '');
+  },
+  error: function(err) {
+    setStatus('Error al leer el CSV. Verifica que el Sheet esté publicado correctamente.', 'error');
+    console.error(err);
+  }
+});
+
+// ===================== BUSQUEDA =====================
+document.getElementById('btnBuscar').addEventListener('click', buscarRutaCercana);
+document.getElementById('coordsInput').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') buscarRutaCercana();
+});
+
+async function buscarRutaCercana() {
+  const raw = document.getElementById('coordsInput').value.trim();
+  if (!raw) {
+    setStatus('Pega las coordenadas del domicilio primero.', 'error');
+    return;
+  }
+
+  const parts = raw.split(',').map(p => p.trim());
+  if (parts.length !== 2) {
+    setStatus('Formato inválido. Usa: latitud, longitud', 'error');
+    return;
+  }
+
+  const homeLat = parseFloat(parts[0]);
+  const homeLon = parseFloat(parts[1]);
+
+  if (isNaN(homeLat) || isNaN(homeLon)) {
+    setStatus('No se pudieron leer las coordenadas. Revisa el formato.', 'error');
+    return;
+  }
+
+  if (vacantes.length === 0) {
+    setStatus('Todavía no se cargan las vacantes, espera un momento.', 'error');
+    return;
+  }
+
+  setStatus('Calculando vacante más cercana...', 'loading');
+
+  // Limpiar marcador y ruta anteriores
+  if (homeMarker) map.removeLayer(homeMarker);
+  if (routeLine) map.removeLayer(routeLine);
+
+  // Colocar marcador de domicilio
+  homeMarker = L.marker([homeLat, homeLon], { icon: coloredIcon('#FBAE40') })
+    .addTo(map)
+    .bindPopup('<b>Domicilio del operador</b>')
+    .openPopup();
+
+  // Calcular distancia Haversine a todas las vacantes
+  let closest = null;
+  let closestDist = Infinity;
+  vacantes.forEach(v => {
+    const d = haversine(homeLat, homeLon, v.lat, v.lon);
+    if (d < closestDist) {
+      closestDist = d;
+      closest = v;
+    }
+  });
+
+  if (!closest) {
+    setStatus('No se encontró ninguna vacante cercana.', 'error');
+    return;
+  }
+
+  // Mostrar resultado preliminar (Haversine) mientras llega OSRM
+  document.getElementById('resultPanel').classList.add('show');
+  document.getElementById('resRuta').textContent = closest.ruta || 'Ruta s/n';
+  document.getElementById('resUdn').textContent = closest.udn || '—';
+  document.getElementById('resPlanta').textContent = closest.planta || '—';
+  document.getElementById('resHaversine').textContent = closestDist.toFixed(1) + ' km';
+  document.getElementById('resKm').textContent = 'Calculando...';
+  document.getElementById('resTiempo').textContent = 'Calculando...';
+
+  // Pedir ruta real a OSRM
+  try {
+    const url = `${OSRM_URL}${homeLon},${homeLat};${closest.lon},${closest.lat}?overview=full&geometries=geojson`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+      throw new Error('OSRM no devolvió ruta');
+    }
+
+    const route = data.routes[0];
+    const kmReal = (route.distance / 1000).toFixed(1);
+    const minReal = Math.round(route.duration / 60);
+
+    document.getElementById('resKm').textContent = kmReal + ' km';
+    document.getElementById('resTiempo').textContent = minReal + ' min';
+
+    // Dibujar la ruta en el mapa
+    const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+    routeLine = L.polyline(coords, { color: '#3b82f6', weight: 4, opacity: 0.8 }).addTo(map);
+
+    // Ajustar el mapa para ver todo el recorrido
+    map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+    setStatus('Ruta calculada correctamente.', '');
+  } catch (err) {
+    console.error(err);
+    document.getElementById('resKm').textContent = 'No disponible';
+    document.getElementById('resTiempo').textContent = 'No disponible';
+    setStatus('OSRM no respondió (puede estar saturado). Se muestra solo la distancia en línea recta.', 'error');
+
+    // Aunque falle OSRM, centramos el mapa en los dos puntos
+    const bounds = L.latLngBounds([[homeLat, homeLon], [closest.lat, closest.lon]]);
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }
+}
+</script>
+</body>
+</html>
