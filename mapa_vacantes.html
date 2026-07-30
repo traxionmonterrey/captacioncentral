@@ -99,17 +99,19 @@ body{font-family:'Segoe UI',Tahoma,Verdana,sans-serif;background:#f3f4f6;}
 
     <div id="resultPanel" class="result-panel">
       <h3>Vacante más cercana</h3>
-      <div class="ruta-name" id="resRuta">—</div>
       <div class="result-row"><span class="label">UDN</span><span class="value" id="resUdn">—</span></div>
       <div class="result-row"><span class="label">Planta</span><span class="value" id="resPlanta">—</span></div>
+      <div class="result-row"><span class="label">Ruta</span><span class="value" id="resRuta">—</span></div>
       <div class="result-row"><span class="label">Distancia en línea recta</span><span class="value" id="resHaversine">—</span></div>
       <div class="result-row"><span class="label">Distancia real (carretera)</span><span class="value" id="resKm">—</span></div>
       <div class="result-row"><span class="label">Tiempo estimado</span><span class="value" id="resTiempo">—</span></div>
     </div>
 
     <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:#D0DF00;"></div> Vacantes disponibles</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#FBAE40;"></div> Domicilio del operador</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1e40af;"></div> Settepi Monterrey</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#15803d;"></div> LIPU Monterrey</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7c4a1e;"></div> Settepi García</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#dc2626;"></div> Domicilio (coordenadas ingresadas)</div>
       <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> Ruta calculada (OSRM)</div>
     </div>
   </aside>
@@ -181,14 +183,27 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// Icono personalizado para vacantes y domicilio
-function coloredIcon(color) {
+// Icono tipo pin (SVG) para vacantes y domicilio
+function pinIcon(color) {
   return L.divIcon({
     className: '',
-    html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8]
+    html: `<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4));">
+      <path d="M13 0C5.8 0 0 5.8 0 13c0 9.5 13 21 13 21s13-11.5 13-21C26 5.8 20.2 0 13 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+      <circle cx="13" cy="13" r="5" fill="#fff"/>
+    </svg>`,
+    iconSize: [26, 34],
+    iconAnchor: [13, 34],
+    popupAnchor: [0, -30]
   });
+}
+
+// Color del pin según UDN
+function getUdnColor(udn) {
+  const key = normalizeKey(udn || '');
+  if (key.includes('garcia')) return '#7c4a1e';       // Settepi Monterrey García -> café
+  if (key.includes('lipu')) return '#15803d';          // LIPU Monterrey -> verde fuerte
+  if (key.includes('settepi')) return '#1e40af';       // Settepi Monterrey -> azul fuerte
+  return '#6b7280';                                    // fallback gris si no matchea ningún UDN conocido
 }
 
 // ===================== CARGA DE VACANTES =====================
@@ -214,7 +229,7 @@ Papa.parse(CSV_URL, {
     }
 
     vacantes.forEach(v => {
-      const marker = L.marker([v.lat, v.lon], { icon: coloredIcon('#D0DF00') })
+      const marker = L.marker([v.lat, v.lon], { icon: pinIcon(getUdnColor(v.udn)) })
         .addTo(map)
         .bindPopup(`<b>${v.ruta || 'Ruta s/n'}</b><br>UDN: ${v.udn || '—'}<br>Planta: ${v.planta || '—'}`);
       vacanteMarkers.push(marker);
@@ -267,7 +282,7 @@ async function buscarRutaCercana() {
   if (routeLine) map.removeLayer(routeLine);
 
   // Colocar marcador de domicilio
-  homeMarker = L.marker([homeLat, homeLon], { icon: coloredIcon('#FBAE40') })
+  homeMarker = L.marker([homeLat, homeLon], { icon: pinIcon('#dc2626') })
     .addTo(map)
     .bindPopup('<b>Domicilio del operador</b>')
     .openPopup();
