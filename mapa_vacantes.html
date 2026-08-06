@@ -34,6 +34,14 @@ body{font-family:'Segoe UI',Tahoma,Verdana,sans-serif;background:#f3f4f6;}
 .search-box button:hover{background:#b9c700;}
 .search-box .hint{font-size:11px;color:#6b7280;margin-top:8px;line-height:1.4;}
 
+.tabs{display:flex;gap:6px;margin-bottom:14px;}
+.tab-btn{flex:1;padding:9px;border:none;border-radius:8px;background:#1f2937;color:#9ca3af;font-weight:700;font-size:12px;cursor:pointer;transition:.2s;}
+.tab-btn.active{background:#374151;color:#D0DF00;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+.field-row{display:flex;gap:8px;}
+.field-row input{flex:1;}
+
 .result-panel{background:#111827;border-radius:10px;padding:16px;display:none;}
 .result-panel.show{display:block;}
 .result-panel h3{color:#FBAE40;font-size:13px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;}
@@ -90,10 +98,30 @@ body{font-family:'Segoe UI',Tahoma,Verdana,sans-serif;background:#f3f4f6;}
     </div>
 
     <div class="search-box">
-      <label>Coordenadas del domicilio (formato Google Maps)</label>
-      <input id="coordsInput" type="text" placeholder="25.85526522092479, -100.37910621509874">
-      <button id="btnBuscar">Buscar ruta más cercana</button>
-      <div class="hint">Pega tal cual las coordenadas que copias de Google Maps (lat, long separadas por coma).</div>
+      <div class="tabs">
+        <button class="tab-btn active" id="tabCoords" type="button">Coordenadas</button>
+        <button class="tab-btn" id="tabAddress" type="button">Dirección</button>
+      </div>
+
+      <div id="panelCoords" class="tab-panel active">
+        <label>Coordenadas del domicilio (formato Google Maps)</label>
+        <input id="coordsInput" type="text" placeholder="25.85526522092479, -100.37910621509874">
+        <button id="btnBuscar">Buscar ruta más cercana</button>
+        <div class="hint">Pega tal cual las coordenadas que copias de Google Maps (lat, long separadas por coma). Es el método más preciso.</div>
+      </div>
+
+      <div id="panelAddress" class="tab-panel">
+        <label>Dirección del domicilio</label>
+        <div class="field-row">
+          <input id="addrCalle" type="text" placeholder="Calle">
+          <input id="addrNumero" type="text" placeholder="Número">
+        </div>
+        <input id="addrColonia" type="text" placeholder="Colonia">
+        <input id="addrCP" type="text" placeholder="Código postal">
+        <button id="btnBuscarDireccion">Buscar ruta más cercana</button>
+        <div class="hint">Ubica la dirección de forma aproximada. Si el pin no cae en el lugar correcto, usa la pestaña de Coordenadas para mayor precisión.</div>
+      </div>
+
       <div id="status" class="status"></div>
     </div>
 
@@ -206,6 +234,13 @@ function getUdnColor(udn) {
   return '#6b7280';                                    // fallback gris si no matchea ningún UDN conocido
 }
 
+// Detecta si el checkbox "Cubierta" viene marcado, sin importar el idioma del Sheet
+function isCovered(val) {
+  if (val === null || val === undefined) return false;
+  const v = val.toString().trim().toUpperCase();
+  return v === 'TRUE' || v === 'VERDADERO' || v === '1' || v === 'SI' || v === 'SÍ' || v === 'X';
+}
+
 // ===================== CARGA DE VACANTES =====================
 setStatus('Cargando vacantes...', 'loading');
 
@@ -220,8 +255,9 @@ Papa.parse(CSV_URL, {
       const ruta = getField(row, ['Ruta']);
       const lat = toFloatCoord(getField(row, ['latitude', 'latitud']));
       const lon = toFloatCoord(getField(row, ['longitude', 'longitud']));
-      return { udn, planta, ruta, lat, lon };
-    }).filter(v => !isNaN(v.lat) && !isNaN(v.lon));
+      const cubierta = getField(row, ['Cubierta']);
+      return { udn, planta, ruta, lat, lon, cubierta };
+    }).filter(v => !isNaN(v.lat) && !isNaN(v.lon) && !isCovered(v.cubierta));
 
     if (vacantes.length === 0) {
       setStatus('No se encontraron vacantes con coordenadas válidas. Revisa el CSV publicado.', 'error');
